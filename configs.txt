@@ -1,0 +1,14 @@
+data_feed_key:
+nelogica_account_login:
+nelogica_account_password:
+routing_key:
+asset:winj24
+quantity:1
+target_player_number:3
+player_quantity_position:1000
+operations_end_time:17h40m
+sim_account:39232
+sim_account_agent:33002
+real_account:
+real_account_agent:28
+use_real_account:false
