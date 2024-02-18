@@ -24,11 +24,11 @@ def main():
                         level=logging.DEBUG)
     try:
         global asset, operation_ongoing
-        logging.info('Starting application...')
+        logging.info('Starting app...')
         start_time = datetime.datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
-        end_time_hour = utils.read_from_file('configs.txt', 'operations_end_time')
-        hour = int(end_time_hour[0: end_time_hour.find('h')])
-        minute = int(end_time_hour[end_time_hour.find('h') + 1: end_time_hour.find('m')])
+        end_time_hour_min = utils.read_from_file('configs.txt', 'operations_end_time')
+        hour = int(end_time_hour_min[0: end_time_hour_min.find('h')])
+        minute = int(end_time_hour_min[end_time_hour_min.find('h') + 1: end_time_hour_min.find('m')])
         end_time = datetime.datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0)
         asset = utils.read_from_file('configs.txt', 'asset')
         init = True
@@ -43,7 +43,9 @@ def main():
                 else:
                     operation_start_trigger()
             time.sleep(1)
-        logging.info('Application finished!')
+        if operation_ongoing:
+            close_ongoing_operation()
+        logging.info('App finished!')
     except Exception as e:
         logging.error('Error when running main method with: ' + str(e))
 
@@ -91,21 +93,34 @@ def process_operation_end():
         if operation_ongoing and target_player_number in nelogica_data_feed_api.players_position:
             target_player_position = nelogica_data_feed_api.players_position[target_player_number]
             if player_changed_side(target_player_position):
-                logging.info(f'Closing operation as current player position is: {target_player_position}')
-                player_position_when_operation_started = target_player_position
-                if player_position_when_operation_started > 0:
-                    # sending buy price 1% higher, to make sure the order will be executed at the best sell price
-                    price = int(nelogica_data_feed_api.tickers_last_price[asset] * 1.01)
-                    nelogica_data_feed_api.send_buy_order(account_number, agent_number, asset, price, amount_per_order,
-                                                          'F')
-                else:
-                    # sending sell price 1% lower, to make sure the order will be executed at the best buy price
-                    price = int(nelogica_data_feed_api.tickers_last_price[asset] * 0.99)
-                    nelogica_data_feed_api.send_sell_order(account_number, agent_number, asset, price, amount_per_order,
-                                                           'F')
-                operation_ongoing = False
+                logging.info(f'Closing operation as player changed its operation side')
+                close_ongoing_operation(target_player_position)
     except Exception as e:
         logging.error('Error when processing operation end with: ' + str(e))
+
+
+def close_ongoing_operation(target_player_position=None):
+    try:
+        global operation_ongoing, player_position_when_operation_started, asset
+        if target_player_position is None:
+            target_player_position = nelogica_data_feed_api.players_position[target_player_number]
+        logging.info(f'Closing operation. Current player position is: {target_player_position}')
+        if player_position_when_operation_started is not None:
+            if player_position_when_operation_started > 0:
+                # sending buy price 1% higher, to make sure the order will be executed at the best sell price
+                price = int(nelogica_data_feed_api.tickers_last_price[asset] * 1.01)
+                nelogica_data_feed_api.send_buy_order(account_number, agent_number, asset, price, amount_per_order,
+                                                      'F')
+            else:
+                # sending sell price 1% lower, to make sure the order will be executed at the best buy price
+                price = int(nelogica_data_feed_api.tickers_last_price[asset] * 0.99)
+                nelogica_data_feed_api.send_sell_order(account_number, agent_number, asset, price, amount_per_order,
+                                                       'F')
+            operation_ongoing = False
+        else:
+            logging.error('Could not close ongoing operation. player_position_when_operation_started is None')
+    except Exception as e:
+        logging.error('Error when processing close_ongoing_operation with: ' + str(e))
 
 
 def player_changed_side(current_player_position):
