@@ -39,7 +39,7 @@ def is_index_asset(asset_code):
 
 def str_to_bool(s):
     s = s.lower().strip()  # Convert to lowercase and remove leading/trailing spaces
-    if s == 'true':
+    if s == 'yes' or s == 'true':
         return True
     else:
         return False
