@@ -3,7 +3,6 @@ import logging
 import time
 
 import utils
-import nelogica_data_feed_api
 
 
 class MainHandlerFilter(logging.Filter):
@@ -41,16 +40,14 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging_main_handler)
 logger.addHandler(logging_debug_handler)
-
-
-# Define custom filters
+import nelogica_data_feed_api
 
 
 def main():
     try:
         global asset, operation_ongoing
         logger.info('Starting app...')
-        start_time = datetime.datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
+        start_time = datetime.datetime.now().replace(hour=8, minute=59, second=0, microsecond=0)
         end_time_hour_min = utils.read_from_file('configs.txt', 'operations_end_time')
         hour = int(end_time_hour_min[0: end_time_hour_min.find('h')])
         minute = int(end_time_hour_min[end_time_hour_min.find('h') + 1: end_time_hour_min.find('m')])
@@ -102,18 +99,20 @@ def operation_start_trigger():
             if abs(target_player_position) >= player_amount_position:
                 operation_ongoing = True
                 logger.info(f'Starting operation as current player position is: {target_player_position}')
-                logger.info('Starting operation as current player position is: ' + str(target_player_position))
                 player_position_when_operation_started = target_player_position
                 if target_player_position > 0:
                     # sending sell price 1% lower, to make sure the order will be executed at the best buy price
-                    price = int(nelogica_data_feed_api.tickers_last_price[asset] * 0.99)
-                    nelogica_data_feed_api.send_sell_order(account_number, agent_number, asset, price, amount_per_order,
-                                                           'F')
+                    price = int(nelogica_data_feed_api.tickers_last_price[asset])
+                    logger.info('current asset price is: ' + str(price))
+                    result = nelogica_data_feed_api.send_market_sell_order(account_number, agent_number, asset,
+                                                                           amount_per_order,
+                                                                           'F')
                 else:
                     # sending buy price 1% higher, to make sure the order will be executed at the best sell price
-                    price = int(nelogica_data_feed_api.tickers_last_price[asset] * 1.01)
-                    nelogica_data_feed_api.send_buy_order(account_number, agent_number, asset, price, amount_per_order,
-                                                          'F')
+                    price = int(nelogica_data_feed_api.tickers_last_price[asset])
+                    logger.info('current asset price is: ' + str(price))
+                    result = nelogica_data_feed_api.send_market_buy_order(account_number, agent_number, asset,
+                                                                          amount_per_order, 'F')
     except Exception as e:
         logger.error('Error when processing operation start trigger with: ' + str(e))
 
@@ -140,14 +139,16 @@ def close_ongoing_operation(target_player_position=None):
         if player_position_when_operation_started is not None:
             if player_position_when_operation_started > 0:
                 # sending buy price 1% higher, to make sure the order will be executed at the best sell price
-                price = int(nelogica_data_feed_api.tickers_last_price[asset] * 1.01)
-                nelogica_data_feed_api.send_buy_order(account_number, agent_number, asset, price, amount_per_order,
-                                                      'F')
+                price = int(nelogica_data_feed_api.tickers_last_price[asset])
+                logger.info('current asset price is: ' + str(price))
+                nelogica_data_feed_api.send_market_buy_order(account_number, agent_number, asset, amount_per_order,
+                                                             'F')
             else:
                 # sending sell price 1% lower, to make sure the order will be executed at the best buy price
-                price = int(nelogica_data_feed_api.tickers_last_price[asset] * 0.99)
-                nelogica_data_feed_api.send_sell_order(account_number, agent_number, asset, price, amount_per_order,
-                                                       'F')
+                price = int(nelogica_data_feed_api.tickers_last_price[asset])
+                logger.info('current asset price is: ' + str(price))
+                nelogica_data_feed_api.send_market_sell_order(account_number, agent_number, asset, amount_per_order,
+                                                              'F')
             operation_ongoing = False
         else:
             logger.error('Could not close ongoing operation. player_position_when_operation_started is None')

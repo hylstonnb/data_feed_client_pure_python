@@ -1,7 +1,8 @@
 import time
 from ctypes import *
-from main import logger
+
 import utils
+from main import logger
 
 # Error Codes
 NL_ERR_INIT = 80
@@ -279,27 +280,33 @@ def subscribe_ticker(ticker, bolsa):
 
 
 # bolsa F or B
-def send_sell_order(account_number, agent_number, ticker, price, amount, bolsa):
+def send_market_sell_order(account_number, agent_number, ticker, amount, bolsa):
     try:
         logger.info(
-            f'Sending sell order for the asset: {ticker} price: {price} amount: {amount} account: {account_number}')
-        order_id = profit_dll.SendSellOrder(account_number, str(agent_number), routing_password,
-                                            ticker, bolsa, c_double(price), amount)
+            f'Sending market sell order for the asset: {ticker} amount: {amount} account: {account_number}')
+        order_id = profit_dll.SendMarketSellOrder(account_number, str(agent_number), routing_password,
+                                                  ticker, bolsa, amount)
+        if order_id == NL_ERR_INVALID_ARGS:
+            logger.warning(f'Error, sell order for asset {ticker} was not properly executed.')
+            return None
         return order_id
     except Exception as e:
-        logger.error("Send sell order failed with: " + str(e))
+        logger.error("Send market sell order failed with: " + str(e))
 
 
 # bolsa F or B
-def send_buy_order(account_number, agent_number, ticker, price, amount, bolsa):
+def send_market_buy_order(account_number, agent_number, ticker, amount, bolsa):
     try:
         logger.info(
-            f'Sending buy order for the asset: {ticker} price: {price} amount: {amount} account: {account_number}')
-        profit_order_id = profit_dll.SendBuyOrder(account_number, str(agent_number), routing_password,
-                                                  ticker, bolsa, c_double(price), amount)
+            f'Sending market buy order for the asset: {ticker} amount: {amount} account: {account_number}')
+        profit_order_id = profit_dll.SendMarketBuyOrder(account_number, str(agent_number), routing_password,
+                                                  ticker, bolsa, amount)
+        if profit_order_id == NL_ERR_INVALID_ARGS:
+            logger.warning(f'Error, buy order for asset {ticker} was not properly executed.')
+            return None
         return profit_order_id
     except Exception as e:
-        logger.error("Send buy order failed with: " + str(e))
+        logger.error("Send market buy order failed with: " + str(e))
 
 
 def get_account():
