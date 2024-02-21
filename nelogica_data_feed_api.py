@@ -1,8 +1,7 @@
 import time
 from ctypes import *
-
+from main import logger
 import utils
-import logging
 
 # Error Codes
 NL_ERR_INIT = 80
@@ -26,6 +25,7 @@ is_progress_finished = False
 win_fut_ticker_state = -1
 players_position = {}
 tickers_last_price = {}
+ticker_state_dict = {}
 
 
 class OrderChange:
@@ -106,7 +106,7 @@ def state_callback(nType, nResult):
         if is_market_connected and is_active and is_login_connected:
             print("Servicos Conectados")
     except Exception as e:
-        logging.error("Exception occurred on method state_callback with " + str(e))
+        logger.error("Exception occurred on method state_callback with " + str(e))
 
 
 @WINFUNCTYPE(None, POINTER(c_int), POINTER(c_int), c_int, c_int, c_int, c_int, c_int, c_int, c_float, c_float, c_float,
@@ -162,7 +162,7 @@ def order_change_callback(asset, agent, nQtd, nTradedQtd, nLeavesQtd, side, sPri
         order_change.date = date
         order_change.message = textMessage
     except Exception as e:
-        logging.error("Exception occurred on method order_change_callback with " + str(e))
+        logger.error("Exception occurred on method order_change_callback with " + str(e))
 
 
 @WINFUNCTYPE(None, c_int, POINTER(c_int), POINTER(c_int), POINTER(c_int))
@@ -178,7 +178,7 @@ def account_callback(broker, broker_name, broker_account_id, account_holder):
         if account_holder is not None:
             print("Account holder:", wstring_at(account_holder))
     except Exception as e:
-        logging.error("Exception occurred on method account_callback with " + str(e))
+        logger.error("Exception occurred on method account_callback with " + str(e))
 
 
 @WINFUNCTYPE(None, TAssetID, c_wchar_p, c_uint, c_double, c_double, c_int, c_int, c_int, c_int, c_wchar)
@@ -196,7 +196,7 @@ def new_trade_callback(asset_id, date, trade_number, price, vol, qtd, buy_agent,
         asset = wstring_at(TAssetID.from_param(asset_id).ticker)
         tickers_last_price[asset] = price
     except Exception as e:
-        logging.warning('Error when processing new_trade_callback with: ' + str(e))
+        logger.warning('Error when processing new_trade_callback with: ' + str(e))
 
 
 @WINFUNCTYPE(None, TAssetID, c_int)
@@ -220,7 +220,7 @@ def change_state_ticker_callback(asset_id, date, state):
         ticker: str = wstring_at(TAssetID.from_param(asset_id).ticker)
         ticker_state_dict[ticker] = state
     except Exception as e:
-        logging.warning('Error when processing change_state_ticker_callback with: ' + str(e))
+        logger.warning('Error when processing change_state_ticker_callback with: ' + str(e))
 
 
 def wait_login():
@@ -264,9 +264,9 @@ def dll_initialize():
 def init_dll_and_subscribe(ticker, bolsa):
     if dll_initialize():
         profit_dll.SubscribeTicker(c_wchar_p(ticker), c_wchar_p(bolsa))
-        logging.info(f"Subscribed for the ticker: {ticker}")
+        logger.info(f"Subscribed for the ticker: {ticker}")
     else:
-        logging.warning(f"Error when initializing ddl and subscribing for ticker: {ticker}")
+        logger.warning(f"Error when initializing ddl and subscribing for ticker: {ticker}")
 
 
 # bolsa F or B
@@ -275,31 +275,31 @@ def subscribe_ticker(ticker, bolsa):
         profit_dll.SubscribeTicker(c_wchar_p(ticker), c_wchar_p(bolsa))
         print("subscribed for the ticker:", ticker)
     except Exception as e:
-        logging.error('Error when processing subscribe_ticker with: ' + str(e))
+        logger.error('Error when processing subscribe_ticker with: ' + str(e))
 
 
 # bolsa F or B
 def send_sell_order(account_number, agent_number, ticker, price, amount, bolsa):
     try:
-        logging.info(
+        logger.info(
             f'Sending sell order for the asset: {ticker} price: {price} amount: {amount} account: {account_number}')
         order_id = profit_dll.SendSellOrder(account_number, str(agent_number), routing_password,
                                             ticker, bolsa, c_double(price), amount)
         return order_id
     except Exception as e:
-        logging.error("Send sell order failed with: " + str(e))
+        logger.error("Send sell order failed with: " + str(e))
 
 
 # bolsa F or B
 def send_buy_order(account_number, agent_number, ticker, price, amount, bolsa):
     try:
-        logging.info(
+        logger.info(
             f'Sending buy order for the asset: {ticker} price: {price} amount: {amount} account: {account_number}')
         profit_order_id = profit_dll.SendBuyOrder(account_number, str(agent_number), routing_password,
                                                   ticker, bolsa, c_double(price), amount)
         return profit_order_id
     except Exception as e:
-        logging.error("Send buy order failed with: " + str(e))
+        logger.error("Send buy order failed with: " + str(e))
 
 
 def get_account():

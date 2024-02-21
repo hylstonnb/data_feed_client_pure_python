@@ -34,8 +34,9 @@ logging_debug_handler = logging.FileHandler(log_file_path + '_players_position.l
 logging_debug_handler.setLevel(logging.DEBUG)
 logging_debug_handler.addFilter(DebugHandlerFilter())
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+debug_formatter = logging.Formatter('%(asctime)s - %(message)s')
 logging_main_handler.setFormatter(formatter)
-logging_debug_handler.setFormatter(formatter)
+logging_debug_handler.setFormatter(debug_formatter)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging_main_handler)
@@ -171,7 +172,7 @@ def players_position_log():
     try:
         players_position = nelogica_data_feed_api.players_position.copy()
         players_position = dict(sorted(players_position.items(), key=lambda item: item[1], reverse=True))
-        if players_position is not None:
+        if players_position is not None and len(players_position) > 0:
             for key, value in players_position.items():
                 logger.debug('player: ' + str(key) + ' position: ' + str(value))
             logger.debug('---------------------------------------------------------------------')
