@@ -300,7 +300,7 @@ def send_market_buy_order(account_number, agent_number, ticker, amount, bolsa):
         logger.info(
             f'Sending market buy order for the asset: {ticker} amount: {amount} account: {account_number}')
         profit_order_id = profit_dll.SendMarketBuyOrder(account_number, str(agent_number), routing_password,
-                                                  ticker, bolsa, amount)
+                                                        ticker, bolsa, amount)
         if profit_order_id == NL_ERR_INVALID_ARGS:
             logger.warning(f'Error, buy order for asset {ticker} was not properly executed.')
             return None
@@ -311,3 +311,8 @@ def send_market_buy_order(account_number, agent_number, ticker, amount, bolsa):
 
 def get_account():
     profit_dll.GetAccount()
+
+
+def dll_disconnect():
+    result = profit_dll.DLLFinalize()
+    logger.info("DLLFinalize:: " + str(result))

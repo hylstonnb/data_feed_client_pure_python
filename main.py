@@ -54,24 +54,31 @@ def main():
         end_time = datetime.datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0)
         asset = utils.read_from_file('configs.txt', 'asset').strip().upper()
         init = True
-        while start_time < datetime.datetime.now() < end_time:
-            loop_start_time = datetime.datetime.now()
-            if init:
-                nelogica_data_feed_api.init_dll_and_subscribe(asset, 'F')
-                load_properties()
-                init = False
-            else:
-                if operation_ongoing:
-                    process_operation_end()
+        disconnect_dll = False
+        while True:
+            time.sleep(1)
+            while start_time < datetime.datetime.now() < end_time:
+                loop_start_time = datetime.datetime.now()
+                if init:
+                    nelogica_data_feed_api.init_dll_and_subscribe(asset, 'F')
+                    disconnect_dll = True
+                    load_properties()
+                    init = False
                 else:
-                    operation_start_trigger()
-            time_elapsed = (datetime.datetime.now() - loop_start_time).total_seconds()
-            sleep_time = 0 if time_elapsed >= 1 else 1 - time_elapsed
-            time.sleep(sleep_time)
-            players_position_log()
-        if operation_ongoing:
-            close_ongoing_operation()
-        logger.info('App finished!')
+                    if operation_ongoing:
+                        process_operation_end()
+                    else:
+                        operation_start_trigger()
+                time_elapsed = (datetime.datetime.now() - loop_start_time).total_seconds()
+                sleep_time = 0 if time_elapsed >= 1 else 1 - time_elapsed
+                time.sleep(sleep_time)
+                players_position_log()
+            if operation_ongoing:
+                close_ongoing_operation()
+            if disconnect_dll:
+                nelogica_data_feed_api.dll_disconnect()
+                logger.info('App finished!')
+                disconnect_dll = False
     except Exception as e:
         logger.error('Error when running main method with: ' + str(e))
 
