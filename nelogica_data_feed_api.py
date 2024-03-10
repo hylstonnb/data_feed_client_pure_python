@@ -27,6 +27,8 @@ win_fut_ticker_state = -1
 players_position = {}
 tickers_last_price = {}
 ticker_state_dict = {}
+dol_player_position = 0
+target_player_number = -1
 
 
 class OrderChange:
@@ -185,17 +187,22 @@ def account_callback(broker, broker_name, broker_account_id, account_holder):
 @WINFUNCTYPE(None, TAssetID, c_wchar_p, c_uint, c_double, c_double, c_int, c_int, c_int, c_int, c_wchar)
 def new_trade_callback(asset_id, date, trade_number, price, vol, qtd, buy_agent, sell_agent, trade_type, bIsEdit):
     try:
-        global tickers_last_price
-        if buy_agent in players_position:
-            players_position[buy_agent] += qtd
-        else:
-            players_position[buy_agent] = qtd
-        if sell_agent in players_position:
-            players_position[sell_agent] -= qtd
-        else:
-            players_position[sell_agent] = -qtd
+        global tickers_last_price, dol_player_position
         asset = wstring_at(TAssetID.from_param(asset_id).ticker)
+        if buy_agent in players_position:
+            players_position[buy_agent] += get_amount(asset, qtd)
+        else:
+            players_position[buy_agent] = get_amount(asset, qtd)
+        if sell_agent in players_position:
+            players_position[sell_agent] -= get_amount(asset, qtd)
+        else:
+            players_position[sell_agent] = -get_amount(asset, qtd)
         tickers_last_price[asset] = price
+        if asset.startswith('DOL') or asset.startswith('WDO'):
+            if sell_agent == target_player_number:
+                dol_player_position -= get_amount(asset, qtd)
+            if buy_agent == target_player_number:
+                dol_player_position += get_amount(asset, qtd)
     except Exception as e:
         logger.warning('Error when processing new_trade_callback with: ' + str(e))
 
@@ -316,3 +323,10 @@ def get_account():
 def dll_disconnect():
     result = profit_dll.DLLFinalize()
     logger.info("DLLFinalize:: " + str(result))
+
+
+def get_amount(asset, qtd):
+    if asset.startswith('DOL'):
+        return qtd * 5
+    else:
+        return qtd
