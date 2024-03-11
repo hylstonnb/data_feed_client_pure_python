@@ -1,5 +1,9 @@
+import datetime
+import threading
 import time
 from ctypes import *
+
+import pytz
 
 import utils
 from main import logger
@@ -16,39 +20,37 @@ is_login_connected = False
 path = utils.get_dir_path('ProfitDLL64.dll')
 profit_dll = WinDLL(path)
 configs_file_path = utils.get_dir_path("configs.txt")
-broker_id = utils.read_from_file(configs_file_path, "broker_id")
-broker_account_id = utils.read_from_file(configs_file_path, "broker_account_id")
-routing_password = utils.read_from_file(configs_file_path, "routing_key")
 nelogica_data_feed_key = utils.read_from_file(configs_file_path, "data_feed_key")
 nelogica_acc_login = utils.read_from_file(configs_file_path, "nelogica_account_login")
 nelogica_acc_password = utils.read_from_file(configs_file_path, "nelogica_account_password")
 is_progress_finished = False
-win_fut_ticker_state = -1
-players_position = {}
-tickers_last_price = {}
-ticker_state_dict = {}
-dol_player_position = 0
-target_player_number = -1
+trades_dict = {}
+tmzone = pytz.timezone("America/SAO_PAULO")
+lock = threading.Lock()
 
 
-class OrderChange:
-    stock_code = str
-    broker_code: int
-    qtd: int
-    trade_qtd: int
-    leaves_qtd: int
-    side: int
+class Trade:
+    asset: str
+    trade_number: int
+    trade_date: str
     price: float
-    stop_price: float
-    avg_price: float
-    profit_id: int
-    order_type: int
-    account: int
-    account_holder: str
-    order_id: int
-    status: str
-    date: str
-    message: str
+    amount: int
+    volume: float
+    buy_agent: int
+    sell_agent: int
+    trade_type: int
+
+    def __dict__(self):
+        return {
+            'trade_date': self.trade_date,
+            'trade_number': self.trade_number,
+            'price': self.price,
+            'amount': self.amount,
+            'volume': self.volume,
+            'buy_agent': self.buy_agent,
+            'sell_agent': self.sell_agent,
+            'trade_type': self.trade_type,
+        }
 
 
 class TAssetID(Structure):
@@ -148,61 +150,34 @@ def tiny_book_callback(asset, price, amount, side):
              c_wchar_p, c_wchar_p, c_wchar_p, c_wchar_p, c_wchar_p, c_wchar_p)
 def order_change_callback(asset, agent, nQtd, nTradedQtd, nLeavesQtd, side, sPrice, sStopPrice, sAvgPrice,
                           nProfitID, tipoOrdem, conta, titular, clOrdID, status, date, textMessage):
-    try:
-        order_change = OrderChange()
-        order_change.stock_code = asset.ticker
-        order_change.broker_code = agent
-        order_change.qtd = nQtd
-        order_change.trade_qtd = nTradedQtd
-        order_change.leaves_qtd = nLeavesQtd
-        order_change.side = side
-        order_change.price = sPrice
-        order_change.stop_price = sStopPrice
-        order_change.avg_price = sAvgPrice
-        order_change.profit_id = nProfitID
-        order_change.order_id = clOrdID
-        order_change.status = status
-        order_change.date = date
-        order_change.message = textMessage
-    except Exception as e:
-        logger.error("Exception occurred on method order_change_callback with " + str(e))
+    return
 
 
 @WINFUNCTYPE(None, c_int, POINTER(c_int), POINTER(c_int), POINTER(c_int))
 def account_callback(broker, broker_name, broker_account_id, account_holder):
-    try:
-        # if False:
-        print("accountCallback")
-        print("Broker:", broker)
-        if broker_name is not None:
-            print("Broker name:", wstring_at(broker_name))
-        if broker_account_id is not None:
-            print("Account id:", wstring_at(broker_account_id))
-        if account_holder is not None:
-            print("Account holder:", wstring_at(account_holder))
-    except Exception as e:
-        logger.error("Exception occurred on method account_callback with " + str(e))
+    return
 
 
 @WINFUNCTYPE(None, TAssetID, c_wchar_p, c_uint, c_double, c_double, c_int, c_int, c_int, c_int, c_wchar)
 def new_trade_callback(asset_id, date, trade_number, price, vol, qtd, buy_agent, sell_agent, trade_type, bIsEdit):
     try:
-        global tickers_last_price, dol_player_position
-        asset = wstring_at(TAssetID.from_param(asset_id).ticker)
-        if buy_agent in players_position:
-            players_position[buy_agent] += get_amount(asset, qtd)
+        global trades_dict
+        trade = Trade()
+        trade.asset = wstring_at(TAssetID.from_param(asset_id).ticker)
+        trade.trade_date = str(tmzone.localize(datetime.datetime.strptime(wstring_at(date), '%d/%m/%Y %H:%M:%S.%f')))
+        trade.trade_number = trade_number
+        trade.price = round(float(price), 2)
+        trade.volume = vol
+        trade.amount = qtd
+        trade.buy_agent = buy_agent
+        trade.sell_agent = sell_agent
+        trade.trade_type = trade_type
+        if trade.asset not in trades_dict:
+            with lock:
+                trades_dict[trade.asset] = [trade.__dict__()]
         else:
-            players_position[buy_agent] = get_amount(asset, qtd)
-        if sell_agent in players_position:
-            players_position[sell_agent] -= get_amount(asset, qtd)
-        else:
-            players_position[sell_agent] = -get_amount(asset, qtd)
-        tickers_last_price[asset] = price
-        if asset.startswith('DOL') or asset.startswith('WDO'):
-            if sell_agent == target_player_number:
-                dol_player_position -= get_amount(asset, qtd)
-            if buy_agent == target_player_number:
-                dol_player_position += get_amount(asset, qtd)
+            with lock:
+                trades_dict[trade.asset].append(trade.__dict__())
     except Exception as e:
         logger.warning('Error when processing new_trade_callback with: ' + str(e))
 
@@ -286,47 +261,6 @@ def subscribe_ticker(ticker, bolsa):
         logger.error('Error when processing subscribe_ticker with: ' + str(e))
 
 
-# bolsa F or B
-def send_market_sell_order(account_number, agent_number, ticker, amount, bolsa):
-    try:
-        logger.info(
-            f'Sending market sell order for the asset: {ticker} amount: {amount} account: {account_number}')
-        order_id = profit_dll.SendMarketSellOrder(account_number, str(agent_number), routing_password,
-                                                  ticker, bolsa, amount)
-        if order_id == NL_ERR_INVALID_ARGS:
-            logger.warning(f'Error, sell order for asset {ticker} was not properly executed.')
-            return None
-        return order_id
-    except Exception as e:
-        logger.error("Send market sell order failed with: " + str(e))
-
-
-# bolsa F or B
-def send_market_buy_order(account_number, agent_number, ticker, amount, bolsa):
-    try:
-        logger.info(
-            f'Sending market buy order for the asset: {ticker} amount: {amount} account: {account_number}')
-        profit_order_id = profit_dll.SendMarketBuyOrder(account_number, str(agent_number), routing_password,
-                                                        ticker, bolsa, amount)
-        if profit_order_id == NL_ERR_INVALID_ARGS:
-            logger.warning(f'Error, buy order for asset {ticker} was not properly executed.')
-            return None
-        return profit_order_id
-    except Exception as e:
-        logger.error("Send market buy order failed with: " + str(e))
-
-
-def get_account():
-    profit_dll.GetAccount()
-
-
 def dll_disconnect():
     result = profit_dll.DLLFinalize()
     logger.info("DLLFinalize:: " + str(result))
-
-
-def get_amount(asset, qtd):
-    if asset.startswith('DOL'):
-        return qtd * 5
-    else:
-        return qtd

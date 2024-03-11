@@ -43,3 +43,19 @@ def str_to_bool(s):
         return True
     else:
         return False
+
+
+def get_file_as_dict(file_path):
+    data = {}
+    with open(file_path, 'r') as file:
+        for line in file:
+            line = line.strip()
+            # Check for and skip comment lines
+            if line.startswith('#'):
+                continue
+            # Split the line into key-value pairs
+            parts = line.split(":")
+            if len(parts) == 2:
+                key, value = parts
+                data[key.replace("'", "").strip()] = value.replace("'", "").strip()
+        return data
