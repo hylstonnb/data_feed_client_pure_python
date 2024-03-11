@@ -216,8 +216,8 @@ def get_quotation(asset_code, start_date=None, stop_date=None):
                                                                      entries:]
                 min_price = df_selection['price'].min()
                 max_price = df_selection['price'].max()
-                open_price = df_selection.head(1)['price']
-                close_price = df_selection.tail(1)['price']
+                open_price = df_selection.iloc[0]['price']
+                close_price = df_selection.iloc[-1]['price']
                 volume = df_selection['volume'].sum()
                 trades = len(df_selection)
                 result['min_price'] = min_price
