@@ -198,12 +198,7 @@ def trade_history_callback(asset_id, date, trade_number, price, vol, qtd, buy_ag
 
 @WINFUNCTYPE(None, TAssetID, c_wchar_p, c_int)
 def change_state_ticker_callback(asset_id, date, state):
-    try:
-        global ticker_state_dict
-        ticker: str = wstring_at(TAssetID.from_param(asset_id).ticker)
-        ticker_state_dict[ticker] = state
-    except Exception as e:
-        logger.warning('Error when processing change_state_ticker_callback with: ' + str(e))
+    return
 
 
 def wait_login():
